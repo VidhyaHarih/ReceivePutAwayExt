@@ -16,15 +16,20 @@ using PX.Objects.IN.WMS;
 using PX.Objects.IN.Overrides.INDocumentRelease;
 using PX.Objects.SO.WMS;
 using System.Runtime.Remoting.Messaging;
+using PX.Objects.SO;
 
 namespace PX.Objects.PO.WMS
 {
     using static PX.BarcodeProcessing.BarcodeDrivenStateMachine<ReceivePutAway, ReceivePutAway.Host>;
+    using static PX.Objects.IN.WMS.WarehouseManagementSystem<ReceivePutAway, ReceivePutAway.Host>;
     using static PX.Objects.PO.WMS.ReceivePutAway;
+    using static PX.Objects.SO.WMS.PickPackShip.PackMode;
+    using static PX.Objects.SO.WMS.PickPackShip;
     using WMSBase = WarehouseManagementSystem<ReceivePutAway, ReceivePutAway.Host>;
 
+
     public class ReceivePutAwayExt : ReceivePutAway.ScanExtension
-    {
+    {     
         public static bool IsActive() => true;
 
         [PXOverride]
@@ -32,7 +37,7 @@ namespace PX.Objects.PO.WMS
 
         [PXOverride]
         public bool get_DocumentIsEditable(Func<bool> base_DocumentIsEditable)
-            {
+        {
             if(Base1.Header.Mode == PrintMode.Value)
             {
                 return true;
@@ -47,16 +52,24 @@ namespace PX.Objects.PO.WMS
             public const string Value = "PRTLBL";
             public class value : BqlString.Constant<value> { public value() : base(PrintMode.Value) { } }
 
-            //public PrintMode.Logic Body => Get<PrintMode.Logic>();
+            public PrintMode.Logic Body => Get<PrintMode.Logic>();
 
             public override string Code => Value;
             public override string Description => Msg.Description;
+
+            #region Logic
+            public class Logic : ScanExtension
+            {
+                // can add logic or modify/override necessary properties
+            }
+            #endregion
 
             #region State Machine
             protected override IEnumerable<ScanState<ReceivePutAway>> CreateStates()
             {
                 yield return new ReceivePutAway.ReceiveMode.ReceiptState();
                 yield return new WMSBase.InventoryItemState() { AlternateType = INPrimaryAlternateType.CPN };
+                yield return new ConfirmState();
             }
 
             protected override IEnumerable<ScanTransition<ReceivePutAway>> CreateTransitions()
@@ -84,7 +97,43 @@ namespace PX.Objects.PO.WMS
                     Basis.PrevInventoryID = null;
                 }
             }
-            #endregion            
+            #endregion
+
+            #region States
+            public sealed class ConfirmState : ConfirmationState
+            {
+                public sealed override string Prompt => Basis.Localize(Msg.Prompt, Basis.SightOf<WMSScanHeader.inventoryID>(), Basis.Qty, Basis.UOM);
+
+                protected sealed override FlowStatus PerformConfirmation() => Get<Logic>().Confirm();
+
+                #region Logic
+                public class Logic : ScanExtension
+                {
+                    protected PrintMode.Logic Mode { get; private set; }
+                    public override void Initialize() => Mode = Basis.Get<PrintMode.Logic>();
+
+                    public virtual FlowStatus Confirm()
+                    {
+                        Basis.DispatchNext(Msg.InventoryAdded, Basis.SelectedInventoryItem.InventoryCD, Basis.Qty, Basis.UOM);
+
+                        return FlowStatus.Ok;
+                    }
+
+                    
+                }
+                #endregion
+
+                #region Messages
+                [PXLocalizable]
+                public abstract class Msg
+                {
+                    public const string Prompt = "Confirm printing {0} x {1} {2}.";
+                    public const string InventoryAdded = "{0} x {1} {2} has been added to the Print List.";
+                    public const string InventoryRemoved = "{0} x {1} {2} has been removed from the Print List.";
+                }
+                #endregion
+            }
+            #endregion
 
             #region Commands            
             public sealed class PrintCommand : ScanCommand
@@ -92,7 +141,7 @@ namespace PX.Objects.PO.WMS
                 public override string Code => "PRINT";
                 public override string ButtonName => "printLabels";
                 public override string DisplayName => Msg.DisplayName;
-                protected override bool IsEnabled => true;
+                protected override bool IsEnabled => true;                
 
                 protected override bool Process()
                 {
@@ -107,7 +156,7 @@ namespace PX.Objects.PO.WMS
                     {
                         if (printByDeviceHub) // print using DeviceHub
                         {
-                            var userSetup = UserSetup.For(Basis);
+                            var userSetup = ReceivePutAway.UserSetup.For(Basis);
                             bool printLabels = userSetup.PrintInventoryLabelsAutomatically == true;
                             string printLabelsReportID = printLabels ? userSetup.InventoryLabelsReportID : null;
                             bool printReceipt = userSetup.PrintPurchaseReceiptAutomatically == true;
@@ -238,7 +287,6 @@ namespace PX.Objects.PO.WMS
 
             yield return new PrintMode();
         }
-
 
         [PXOverride]
         public virtual ScanMode<ReceivePutAway> DecorateScanMode(ScanMode<ReceivePutAway> original, Func<ScanMode<ReceivePutAway>, ScanMode<ReceivePutAway>> base_DecorateScanMode)

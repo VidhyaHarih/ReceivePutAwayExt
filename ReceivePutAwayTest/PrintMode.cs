@@ -27,6 +27,21 @@ namespace PX.Objects.PO.WMS
     {
         public static bool IsActive() => true;
 
+        [PXOverride]
+        public virtual bool DocumentLoaded => Base1.RefNbr != null;
+
+        [PXOverride]
+        public bool get_DocumentIsEditable(Func<bool> base_DocumentIsEditable)
+            {
+            if(Base1.Header.Mode == PrintMode.Value)
+            {
+                return true;
+            }
+            else
+            {
+                return base_DocumentIsEditable();
+            }
+        }
         public sealed class PrintMode : ReceivePutAway.ScanMode
         {
             public const string Value = "PRTLBL";

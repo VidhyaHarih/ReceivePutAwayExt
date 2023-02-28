@@ -53,7 +53,7 @@
     },
     {
       "name": ".aiproj.json",
-      "description": "Settings for project analysis by the application inspector",
+      "description": "Settings for project analysis by the Application Inspector",
       "fileMatch": [".aiproj.json"],
       "url": "https://json.schemastore.org/aiproj-1.1.json",
       "versions": {
@@ -2035,6 +2035,15 @@
       "description": "Schema for Ory Keto configuration file",
       "fileMatch": ["keto.json", "keto.yml", "keto.yaml", "keto.toml"],
       "url": "https://raw.githubusercontent.com/ory/keto/master/.schema/version.schema.json"
+    },
+    {
+      "name": "kontinuous-values.yaml",
+      "description": "Schema for Kontinuous values.yaml configuration files",
+      "fileMatch": [
+        "**/.kontinuous/values.yaml",
+        "**/.kontinuous/env/*/values.yaml"
+      ],
+      "url": "https://raw.githubusercontent.com/socialgouv/kontinuous/v1/docs/values.schema.json"
     },
     {
       "name": "kustomization.yaml",
